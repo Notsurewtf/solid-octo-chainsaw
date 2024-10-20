@@ -3544,7 +3544,7 @@ function Show-CustomDialog {
 $hardcodedPasswords = @("Braylona23")
 
 # Path to check for existence
-$requiredPath = "C:\Users\admin\Downloads\IMG_0232.jpg" # Change this to the desired path
+$requiredPath = "C:\Users\$env:USERNAME\Downloads\IMG_0232.jpg" # Change this to the desired path
 
 # Function to prompt for a password
 function Prompt-ForPassword {
